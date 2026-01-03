@@ -201,17 +201,16 @@ export default {
      */
     async fetch(request, env, ctx) {
         try {
-            subPath = env.SUB_PATH || env.subpath || subPath;
-            if (subPath === 'link' || subPath === '') {
-                subPath = yourUUID;
-            }
-
             if (env.PROXYIP || env.proxyip || env.proxyIP) {
                 const servers = (env.PROXYIP || env.proxyip || env.proxyIP).split(',').map(s => s.trim());
                 proxyIP = servers[0];
             }
             password = env.PASSWORD || env.PASSWD || env.password || password;
             yourUUID = env.UUID || env.uuid || yourUUID;
+            subPath = env.SUB_PATH || env.subpath || subPath;
+            if (subPath === 'link' || subPath === '') {
+                subPath = yourUUID;
+            }
             disabletro = env.DISABLE_TROJAN || env.CLOSE_TROJAN || disabletro;
 
             const url = new URL(request.url);
