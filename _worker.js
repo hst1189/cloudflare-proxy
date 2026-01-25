@@ -1,9 +1,9 @@
 import { connect } from 'cloudflare:sockets';
 
-let subPath = '';        // SUB_PATH | subPath  订阅路径,不修改将使用uuid作为订阅路径
-let password = '';       // PASSWORD | 主页密码,建议修改或添加 PASSWORD环境变量
-let proxyIP = '';        // PROXYIP  | proxyIP  代理IP
-let yourUUID = '';       // UUID     | uuid     UUID建议修改或添加环境便量
+let subPath = '';        // SUB_PATH | 订阅路径,不修改将使用uuid作为订阅路径
+let password = '';       // PASSWORD | 建议添加环境变量
+let proxyIP = '';        // PROXYIP  | 代理IP
+let yourUUID = '';       // UUID     | 建议添加环境变量
 let disabletro = false;  // DISABLE_TROJAN | 是否关闭Trojan, 设置为true时关闭，false开启，默认开启  
 
 // CDN 
@@ -12,13 +12,6 @@ let cfip = [ // 格式:优选域名:端口#备注名称、优选IP:端口#备注
     'cf.090227.xyz#SG', 'cf.877774.xyz#HK', 'cdns.doon.eu.org#JP', 'sub.danfeng.eu.org#TW', 'cf.zhetengsha.eu.org#HK'
 ];  // 在此感谢各位大佬维护的优选域名
 
-function closeSocketQuietly(socket) {
-    try {
-        if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CLOSING) {
-            socket.close();
-        }
-    } catch (error) { }
-}
 
 function formatIdentifier(arr, offset = 0) {
     const hex = [...arr.slice(offset, offset + 16)].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -39,7 +32,28 @@ function base64ToArray(b64Str) {
     }
 }
 
-function parsePryAddress(serverStr) {
+function closeSocketQuietly(socket) {
+    try {
+        if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CLOSING) {
+            socket.close();
+        }
+    } catch (error) { }
+}
+
+function isSpeedTestSite(hostname) {
+    const speedTestDomains = ['speedtest.net', 'fast.com', 'speedtest.cn', 'speed.cloudflare.com', 'ovo.speedtestcustom.com'];
+    if (speedTestDomains.includes(hostname)) {
+        return true;
+    }
+    for (const domain of speedTestDomains) {
+        if (hostname.endsWith('.' + domain) || hostname === domain) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function parseProxyAddress(serverStr) {
     if (!serverStr) return null;
     serverStr = serverStr.trim();
     // 解析 S5
@@ -104,20 +118,6 @@ function parsePryAddress(serverStr) {
     }
 
     return { type: 'direct', host: serverStr, port: 443 };
-}
-
-function isSpeedTestSite(hostname) {
-    const speedTestDomains = ['speedtest.net', 'fast.com', 'speedtest.cn', 'speed.cloudflare.com', 'ovo.speedtestcustom.com'];
-    if (speedTestDomains.includes(hostname)) {
-        return true;
-    }
-
-    for (const domain of speedTestDomains) {
-        if (hostname.endsWith('.' + domain) || hostname === domain) {
-            return true;
-        }
-    }
-    return false;
 }
 
 async function sha224(text) {
@@ -208,14 +208,13 @@ export default {
             password = env.PASSWORD || env.PASSWD || env.password || password;
             yourUUID = env.UUID || env.uuid || yourUUID;
             subPath = env.SUB_PATH || env.subpath || subPath;
-            if (subPath === 'link' || subPath === '') {
+            if (subPath === '') {
                 subPath = yourUUID;
             }
             disabletro = env.DISABLE_TROJAN || env.CLOSE_TROJAN || disabletro;
 
             const url = new URL(request.url);
             const pathname = url.pathname;
-
             let pathProxyIP = null;
             if (pathname.startsWith('/proxyip=')) {
                 try {
@@ -615,14 +614,14 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
     let proxyConfig = null;
     let shouldUseProxy = false;
     if (customProxyIP) {
-        proxyConfig = parsePryAddress(customProxyIP);
+        proxyConfig = parseProxyAddress(customProxyIP);
         if (proxyConfig && (proxyConfig.type === 'socks5' || proxyConfig.type === 'http' || proxyConfig.type === 'https')) {
             shouldUseProxy = true;
         } else if (!proxyConfig) {
-            proxyConfig = parsePryAddress(proxyIP) || { type: 'direct', host: proxyIP, port: 443 };
+            proxyConfig = parseProxyAddress(proxyIP) || { type: 'direct', host: proxyIP, port: 443 };
         }
     } else {
-        proxyConfig = parsePryAddress(proxyIP) || { type: 'direct', host: proxyIP, port: 443 };
+        proxyConfig = parseProxyAddress(proxyIP) || { type: 'direct', host: proxyIP, port: 443 };
         if (proxyConfig.type === 'socks5' || proxyConfig.type === 'http' || proxyConfig.type === 'https') {
             shouldUseProxy = true;
         }
