@@ -1,10 +1,5 @@
 
-
-<div align="center">
-
 # Workers & Snippets deploy VLESS + trojan + shadowsocks
-
-Telegram交流反馈群组: https://t.me/eooceu
 
 基于 Cloudflare Workers & Snippets 的高性能 VLESS+trojan 代理服务
 
@@ -12,7 +7,7 @@ Workers & Snippets视频教程：https://youtu.be/GEcKz2NoKlM
 
 Shadowsocks视频教程：https://youtu.be/hUPN_69Atow
 
-</div>
+
 
 ## 功能特性
 
@@ -26,20 +21,13 @@ Shadowsocks视频教程：https://youtu.be/hUPN_69Atow
 
 ## 环境变量配置
 
-### 必需变量
-
-| 变量名 | 描述 | 默认值 | 示例 |
-|--------|------|--------|------|
-| `PASSWORD` | 主页访问密码 | `123456` | `your_web_password` |
-
-### workers可选变量
-
-| 变量名 | 描述 | 默认值 | 示例 |
-|--------|------|--------|------|
-| `UUID`或`AUTH`或`uuid` | 用户UUID | `5dc15e15-f285-4a9d-959b-0e4fbdd77b63` | `your-uuid` |
-| `PROXYIP`或`proxyip`或`proxyIP` | 代理服务器IP列表 | `13.230.34.30` | `tw.tp81.netlib.re` |
-| `SUB_PATH`或`subpath` | 订阅路径 | `link` | `sub` |
-| `DISABLE_TROJAN`或`CLOSE_TROJAN` | 是否关闭Trojan协议，true关闭，false开启 | `false` | 默认开启 |
+| 变量名 | 描述 | 示例 |
+|--------|------|------|
+| `UUID`或`AUTH`或`uuid` | 用户UUID | `5dc15e15-f285-4a9d-959b-0e4fbdd77b63` |
+| `PASSWORD` | 主页访问密码 | `123456` |
+| `PROXYIP`或`proxyip`或`proxyIP` | 代理服务器IP列表 | `13.230.34.30` |
+| `SUB_PATH`或`subpath` | 订阅路径 | `sub` |
+| `DISABLE_TROJAN`或`CLOSE_TROJAN` | 是否关闭Trojan协议，true关闭，false开启 | `false` 默认开启 |
 
 ## 部署步骤
 
@@ -65,6 +53,13 @@ Shadowsocks视频教程：https://youtu.be/hUPN_69Atow
 5. **访问自定义域名**
    - 输入登录密码进入主页查看相关订阅链接
 
+
+> [!TIP]
+> cloudns 双向解析域名部署snippets统一使用的域名前缀
+> _acme-challenge
+
+
+
 ## snippets / workers 路径进阶用法
 
 ### 相关路径说明
@@ -78,11 +73,6 @@ Shadowsocks视频教程：https://youtu.be/hUPN_69Atow
 | **SOCKS5** | `/?ed=2560&proxyip=socks://user:pass@host:port` 或 `/proxyip=socks://user:pass@host:port` | 使用全局 SOCKS5 出站 协议头可为socks5 |
 | **HTTP** | `/?ed=2560&proxyip=http://user:pass@host:port` 或 `/proxyip=http://user:pass@host:port` | 使用全局 HTTP/HTTPS 出站 |
 
-
-## cloudns 双向解析域名部署snippets统一使用的域名前缀
-```bash
-_acme-challenge
-```
 
 ## shadowsocks 节点参数对照图
 节点path为SSpath变量或uuid开头，示例：`/5dc15e15-f285-4a9d-959b-0e4fbdd77b63/?ed=2560`   带proxyip的示例：`/5dc15e15-f285-4a9d-959b-0e4fbdd77b63/?ed=2560&proxyip=xxxx`  小火箭可去掉`?ed=2560&` 来自定义proxyip或全局出站
