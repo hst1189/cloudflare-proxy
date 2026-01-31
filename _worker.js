@@ -12,6 +12,13 @@ let cfip = [ // 格式:优选域名:端口#备注名称、优选IP:端口#备注
     'cf.090227.xyz#SG', 'cf.877774.xyz#HK', 'cdns.doon.eu.org#JP', 'sub.danfeng.eu.org#TW', 'cf.zhetengsha.eu.org#HK'
 ];  // 在此感谢各位大佬维护的优选域名
 
+function closeSocketQuietly(socket) {
+    try {
+        if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CLOSING) {
+            socket.close();
+        }
+    } catch (error) { }
+}
 
 function formatIdentifier(arr, offset = 0) {
     const hex = [...arr.slice(offset, offset + 16)].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -30,14 +37,6 @@ function base64ToArray(b64Str) {
     } catch (error) {
         return { error };
     }
-}
-
-function closeSocketQuietly(socket) {
-    try {
-        if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CLOSING) {
-            socket.close();
-        }
-    } catch (error) { }
 }
 
 function isSpeedTestSite(hostname) {
@@ -120,6 +119,8 @@ function parseProxyAddress(serverStr) {
     return { type: 'direct', host: serverStr, port: 443 };
 }
 
+
+
 async function sha224(text) {
     const encoder = new TextEncoder();
     const data = encoder.encode(text);
@@ -195,23 +196,26 @@ function rightRotate(value, amount) {
 export default {
     /**
      * @param {import("@cloudflare/workers-types").Request} request
-     * @param {{UUID: string, uuid: string, PROXYIP: string, proxyip: string, proxyIP: string, PASSWORD: string, PASSWD: string, password: string, SUB_PATH: string, subpath: string, DISABLE_TROJAN: string, CLOSE_TROJAN: string}} env
+     * @param {{UUID: string, uuid: string, PROXYIP: string, PASSWORD: string, PASSWD: string, password: string, proxyip: string, proxyIP: string, SUB_PATH: string, subpath: string, DISABLE_TROJAN: string, CLOSE_TROJAN: string}} env
      * @param {import("@cloudflare/workers-types").ExecutionContext} ctx
      * @returns {Promise<Response>}
      */
     async fetch(request, env, ctx) {
         try {
+			// snippets 没有环境变量，将env注释掉
+            if (subPath === 'link' || subPath === '') {
+                subPath = yourUUID;
+            }
+
             if (env.PROXYIP || env.proxyip || env.proxyIP) {
                 const servers = (env.PROXYIP || env.proxyip || env.proxyIP).split(',').map(s => s.trim());
                 proxyIP = servers[0];
             }
             password = env.PASSWORD || env.PASSWD || env.password || password;
-            yourUUID = env.UUID || env.uuid || yourUUID;
             subPath = env.SUB_PATH || env.subpath || subPath;
-            if (subPath === '') {
-                subPath = yourUUID;
-            }
+            yourUUID = env.UUID || env.uuid || yourUUID;
             disabletro = env.DISABLE_TROJAN || env.CLOSE_TROJAN || disabletro;
+            // snippets 没有环境变量，将env注释掉
 
             const url = new URL(request.url);
             const pathname = url.pathname;
@@ -243,6 +247,7 @@ export default {
                         // 忽略错误
                     }
                 }
+
                 const customProxyIP = wsPathProxyIP || url.searchParams.get('proxyip') || request.headers.get('proxyip');
                 return await handleVlsRequest(request, customProxyIP);
             } else if (request.method === 'GET') {
@@ -328,21 +333,22 @@ export default {
 };
 
 /**
+ * 
  * @param {import("@cloudflare/workers-types").Request} request
  */
 async function handleVlsRequest(request, customProxyIP) {
-    const wssPair = new WebSocketPair();
-    const [clientSock, serverSock] = Object.values(wssPair);
+    const wsPair = new WebSocketPair();
+    const [clientSock, serverSock] = Object.values(wsPair);
     serverSock.accept();
     let remoteConnWrapper = { socket: null };
     let isDnsQuery = false;
     let isTrojan = false;
     const earlyData = request.headers.get('sec-websocket-protocol') || '';
-    const readable = makeReadableStr(serverSock, earlyData);
+    const readable = makeReadableStream(serverSock, earlyData);
 
     readable.pipeTo(new WritableStream({
         async write(chunk) {
-            if (isDnsQuery) return await forwardataudp(chunk, serverSock, null);
+            if (isDnsQuery) return await forwardUDP(chunk, serverSock, null);
             if (remoteConnWrapper.socket) {
                 const writer = remoteConnWrapper.socket.writable.getWriter();
                 await writer.write(chunk);
@@ -355,15 +361,16 @@ async function handleVlsRequest(request, customProxyIP) {
                 if (!trojanResult.hasError) {
                     isTrojan = true;
                     const { addressType, port, hostname, rawClientData } = trojanResult;
+
                     if (isSpeedTestSite(hostname)) {
                         throw new Error('Speedtest site is blocked');
                     }
-                    await forwardataTCP(hostname, port, rawClientData, serverSock, null, remoteConnWrapper, customProxyIP);
+
+                    await forwardTCP(hostname, port, rawClientData, serverSock, null, remoteConnWrapper, customProxyIP);
                     return;
                 }
             }
-
-            const { hasError, message, addressType, port, hostname, rawIndex, version, isUDP } = parseVLsPacketHeader(chunk, yourUUID);
+            const { hasError, message, addressType, port, hostname, rawIndex, version, isUDP } = parseWsPacketHeader(chunk, yourUUID);
             if (hasError) throw new Error(message);
 
             if (isSpeedTestSite(hostname)) {
@@ -376,8 +383,8 @@ async function handleVlsRequest(request, customProxyIP) {
             }
             const respHeader = new Uint8Array([version[0], 0]);
             const rawData = chunk.slice(rawIndex);
-            if (isDnsQuery) return forwardataudp(rawData, serverSock, respHeader);
-            await forwardataTCP(hostname, port, rawData, serverSock, respHeader, remoteConnWrapper, customProxyIP);
+            if (isDnsQuery) return forwardUDP(rawData, serverSock, respHeader);
+            await forwardTCP(hostname, port, rawData, serverSock, respHeader, remoteConnWrapper, customProxyIP);
         },
     })).catch((err) => {
         // console.error('Readable pipe error:', err);
@@ -458,151 +465,204 @@ async function parsetroHeader(buffer, passwordPlainText) {
 
 async function connect2Socks5(proxyConfig, targetHost, targetPort, initialData) {
     const { host, port, username, password } = proxyConfig;
-    const socket = connect({ hostname: host, port: port });
-    const writer = socket.writable.getWriter();
-    const reader = socket.readable.getReader();
-
+    let socket;
     try {
-        const authMethods = username && password ?
-            new Uint8Array([0x05, 0x02, 0x00, 0x02]) :
-            new Uint8Array([0x05, 0x01, 0x00]);
+        socket = connect({ hostname: host, port: port });
+        const writer = socket.writable.getWriter();
+        const reader = socket.readable.getReader();
 
-        await writer.write(authMethods);
-        const methodResponse = await reader.read();
-        if (methodResponse.done || methodResponse.value.byteLength < 2) {
-            throw new Error('S5 method selection failed');
-        }
+        try {
+            const authMethods = username && password ?
+                new Uint8Array([0x05, 0x02, 0x00, 0x02]) :
+                new Uint8Array([0x05, 0x01, 0x00]);
 
-        const selectedMethod = new Uint8Array(methodResponse.value)[1];
-        if (selectedMethod === 0x02) {
-            if (!username || !password) {
-                throw new Error('S5 requires authentication');
+            await writer.write(authMethods);
+            const methodResponse = await reader.read();
+            if (methodResponse.done || methodResponse.value.byteLength < 2) {
+                throw new Error('S5 method selection failed');
             }
-            const userBytes = new TextEncoder().encode(username);
-            const passBytes = new TextEncoder().encode(password);
-            const authPacket = new Uint8Array(3 + userBytes.length + passBytes.length);
-            authPacket[0] = 0x01;
-            authPacket[1] = userBytes.length;
-            authPacket.set(userBytes, 2);
-            authPacket[2 + userBytes.length] = passBytes.length;
-            authPacket.set(passBytes, 3 + userBytes.length);
-            await writer.write(authPacket);
-            const authResponse = await reader.read();
-            if (authResponse.done || new Uint8Array(authResponse.value)[1] !== 0x00) {
-                throw new Error('S5 authentication failed');
+
+            const selectedMethod = new Uint8Array(methodResponse.value)[1];
+            if (selectedMethod === 0x02) {
+                if (!username || !password) {
+                    throw new Error('S5 requires authentication');
+                }
+
+                const userBytes = new TextEncoder().encode(username);
+                const passBytes = new TextEncoder().encode(password);
+                const authPacket = new Uint8Array(3 + userBytes.length + passBytes.length);
+                authPacket[0] = 0x01;
+                authPacket[1] = userBytes.length;
+                authPacket.set(userBytes, 2);
+                authPacket[2 + userBytes.length] = passBytes.length;
+                authPacket.set(passBytes, 3 + userBytes.length);
+                await writer.write(authPacket);
+                const authResponse = await reader.read();
+                if (authResponse.done || new Uint8Array(authResponse.value)[1] !== 0x00) {
+                    throw new Error('S5 authentication failed');
+                }
+            } else if (selectedMethod !== 0x00) {
+                throw new Error(`S5 unsupported auth method: ${selectedMethod}`);
             }
-        } else if (selectedMethod !== 0x00) {
-            throw new Error(`S5 unsupported auth method: ${selectedMethod}`);
-        }
 
-        const hostBytes = new TextEncoder().encode(targetHost);
-        const connectPacket = new Uint8Array(7 + hostBytes.length);
-        connectPacket[0] = 0x05;
-        connectPacket[1] = 0x01;
-        connectPacket[2] = 0x00;
-        connectPacket[3] = 0x03;
-        connectPacket[4] = hostBytes.length;
-        connectPacket.set(hostBytes, 5);
-        new DataView(connectPacket.buffer).setUint16(5 + hostBytes.length, targetPort, false);
-        await writer.write(connectPacket);
-        const connectResponse = await reader.read();
-        if (connectResponse.done || new Uint8Array(connectResponse.value)[1] !== 0x00) {
-            throw new Error('S5 connection failed');
-        }
+            const hostBytes = new TextEncoder().encode(targetHost);
+            const connectPacket = new Uint8Array(7 + hostBytes.length);
+            connectPacket[0] = 0x05;
+            connectPacket[1] = 0x01;
+            connectPacket[2] = 0x00;
+            connectPacket[3] = 0x03;
+            connectPacket[4] = hostBytes.length;
+            connectPacket.set(hostBytes, 5);
+            new DataView(connectPacket.buffer).setUint16(5 + hostBytes.length, targetPort, false);
+            await writer.write(connectPacket);
+            const connectResponse = await reader.read();
+            if (connectResponse.done || new Uint8Array(connectResponse.value)[1] !== 0x00) {
+                throw new Error('S5 connection failed');
+            }
 
-        await writer.write(initialData);
-        writer.releaseLock();
-        reader.releaseLock();
-        return socket;
+            await writer.write(initialData);
+            writer.releaseLock();
+            reader.releaseLock();
+            return socket;
+        } catch (error) {
+            writer.releaseLock();
+            reader.releaseLock();
+            throw error;
+        }
     } catch (error) {
-        writer.releaseLock();
-        reader.releaseLock();
+        if (socket) {
+            try {
+                socket.close();
+            } catch (e) {
+                // throw e;
+            }
+        }
         throw error;
     }
 }
 
 async function connect2Http(proxyConfig, targetHost, targetPort, initialData) {
     const { host, port, username, password } = proxyConfig;
-    const socket = connect({ hostname: host, port: port });
-    const writer = socket.writable.getWriter();
-    const reader = socket.readable.getReader();
+    let socket;
     try {
-        let connectRequest = `CONNECT ${targetHost}:${targetPort} HTTP/1.1\r\n`;
-        connectRequest += `Host: ${targetHost}:${targetPort}\r\n`;
+        socket = connect({ hostname: host, port: port });
+        const writer = socket.writable.getWriter();
+        const reader = socket.readable.getReader();
+        try {
+            let connectRequest = `CONNECT ${targetHost}:${targetPort} HTTP/1.1\r\n`;
+            connectRequest += `Host: ${targetHost}:${targetPort}\r\n`;
 
-        if (username && password) {
-            const auth = btoa(`${username}:${password}`);
-            connectRequest += `Proxy-Authorization: Basic ${auth}\r\n`;
-        }
-
-        connectRequest += `User-Agent: Mozilla/5.0\r\n`;
-        connectRequest += `Connection: keep-alive\r\n`;
-        connectRequest += '\r\n';
-        await writer.write(new TextEncoder().encode(connectRequest));
-        let responseBuffer = new Uint8Array(0);
-        let headerEndIndex = -1;
-        let bytesRead = 0;
-        const maxHeaderSize = 8192;
-
-        while (headerEndIndex === -1 && bytesRead < maxHeaderSize) {
-            const { done, value } = await reader.read();
-            if (done) {
-                throw new Error('Connection closed before receiving HTTP response');
+            if (username && password) {
+                const auth = btoa(`${username}:${password}`);
+                connectRequest += `Proxy-Authorization: Basic ${auth}\r\n`;
             }
-            const newBuffer = new Uint8Array(responseBuffer.length + value.length);
-            newBuffer.set(responseBuffer);
-            newBuffer.set(value, responseBuffer.length);
-            responseBuffer = newBuffer;
-            bytesRead = responseBuffer.length;
 
-            for (let i = 0; i < responseBuffer.length - 3; i++) {
-                if (responseBuffer[i] === 0x0d && responseBuffer[i + 1] === 0x0a &&
-                    responseBuffer[i + 2] === 0x0d && responseBuffer[i + 3] === 0x0a) {
-                    headerEndIndex = i + 4;
-                    break;
+            connectRequest += `User-Agent: Mozilla/5.0\r\n`;
+            connectRequest += `Connection: keep-alive\r\n`;
+            connectRequest += '\r\n';
+            await writer.write(new TextEncoder().encode(connectRequest));
+            let responseBuffer = new Uint8Array(0);
+            let headerEndIndex = -1;
+            let bytesRead = 0;
+            const maxHeaderSize = 8192;
+            const startTime = Date.now();
+            const timeoutMs = 10000;
+
+            while (headerEndIndex === -1 && bytesRead < maxHeaderSize) {
+                if (Date.now() - startTime > timeoutMs) {
+                    throw new Error('connection timeout');
+                }
+
+                const { done, value } = await reader.read();
+                if (done) {
+                    throw new Error('Connection closed before receiving HTTP response');
+                }
+
+                const newBuffer = new Uint8Array(responseBuffer.length + value.length);
+                newBuffer.set(responseBuffer);
+                newBuffer.set(value, responseBuffer.length);
+                responseBuffer = newBuffer;
+                bytesRead = responseBuffer.length;
+
+                for (let i = 0; i < responseBuffer.length - 3; i++) {
+                    if (responseBuffer[i] === 0x0d && responseBuffer[i + 1] === 0x0a &&
+                        responseBuffer[i + 2] === 0x0d && responseBuffer[i + 3] === 0x0a) {
+                        headerEndIndex = i + 4;
+                        break;
+                    }
                 }
             }
-        }
 
-        if (headerEndIndex === -1) {
-            throw new Error('Invalid HTTP response');
-        }
+            if (headerEndIndex === -1) {
+                throw new Error('Invalid HTTP response or response too large');
+            }
 
-        const headerText = new TextDecoder().decode(responseBuffer.slice(0, headerEndIndex));
-        const statusLine = headerText.split('\r\n')[0];
-        const statusMatch = statusLine.match(/HTTP\/\d\.\d\s+(\d+)/);
+            const headerText = new TextDecoder().decode(responseBuffer.slice(0, headerEndIndex));
+            const statusLine = headerText.split('\r\n')[0];
+            const statusMatch = statusLine.match(/HTTP\/\d\.\d\s+(\d+)/);
 
-        if (!statusMatch) {
-            throw new Error(`Invalid response: ${statusLine}`);
-        }
+            if (!statusMatch) {
+                throw new Error(`Invalid response: ${statusLine}`);
+            }
 
-        const statusCode = parseInt(statusMatch[1]);
-        if (statusCode < 200 || statusCode >= 300) {
-            throw new Error(`Connection failed: ${statusLine}`);
-        }
+            const statusCode = parseInt(statusMatch[1]);
+            if (statusCode < 200 || statusCode >= 300) {
+                throw new Error(`Connection failed with status ${statusCode}: ${statusLine}`);
+            }
 
-        console.log('HTTP connection established for Trojan');
-
-        await writer.write(initialData);
-        writer.releaseLock();
-        reader.releaseLock();
-
-        return socket;
-    } catch (error) {
-        try {
+            await writer.write(initialData);
             writer.releaseLock();
-        } catch (e) { }
-        try {
             reader.releaseLock();
-        } catch (e) { }
-        try {
-            socket.close();
-        } catch (e) { }
+
+            return socket;
+        } catch (error) {
+            try {
+                writer.releaseLock();
+            } catch (e) { }
+            try {
+                reader.releaseLock();
+            } catch (e) { }
+            throw error;
+        }
+    } catch (error) {
+        if (socket) {
+            try {
+                socket.close();
+            } catch (e) {
+            }
+        }
         throw error;
     }
 }
 
-async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnWrapper, customProxyIP) {
+async function forwardUDP(udpChunk, webSocket, respHeader) {
+    try {
+        const tcpSocket = connect({ hostname: '8.8.4.4', port: 53 });
+        let vlessHeader = respHeader;
+        const writer = tcpSocket.writable.getWriter();
+        await writer.write(udpChunk);
+        writer.releaseLock();
+        await tcpSocket.readable.pipeTo(new WritableStream({
+            async write(chunk) {
+                if (webSocket.readyState === WebSocket.OPEN) {
+                    if (vlessHeader) {
+                        const response = new Uint8Array(vlessHeader.length + chunk.byteLength);
+                        response.set(vlessHeader, 0);
+                        response.set(chunk, vlessHeader.length);
+                        webSocket.send(response.buffer);
+                        vlessHeader = null;
+                    } else {
+                        webSocket.send(chunk);
+                    }
+                }
+            },
+        }));
+    } catch (error) {
+        // console.error('UDP forward error:', error);
+    }
+}
+
+async function forwardTCP(host, portNum, rawData, ws, respHeader, remoteConnWrapper, customProxyIP) {
     async function connectDirect(address, port, data) {
         const remoteSock = connect({ hostname: address, port: port });
         const writer = remoteSock.writable.getWriter();
@@ -638,7 +698,7 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
         }
 
         remoteConnWrapper.socket = newSocket;
-        newSocket.closed.catch(() => { }).finally(() => closeSocketQuietly(ws));
+        newSocket.closed.catch(() => {}).finally(() => closeSocketQuietly(ws));
         connectStreams(newSocket, ws, respHeader, null);
     }
 
@@ -659,14 +719,14 @@ async function forwardataTCP(host, portNum, rawData, ws, respHeader, remoteConnW
     }
 }
 
-function parseVLsPacketHeader(chunk, token) {
+function parseWsPacketHeader(chunk, token) {
     if (chunk.byteLength < 24) return { hasError: true, message: 'Invalid data' };
     const version = new Uint8Array(chunk.slice(0, 1));
     if (formatIdentifier(new Uint8Array(chunk.slice(1, 17))) !== token) return { hasError: true, message: 'Invalid uuid' };
     const optLen = new Uint8Array(chunk.slice(17, 18))[0];
     const cmd = new Uint8Array(chunk.slice(18 + optLen, 19 + optLen))[0];
     let isUDP = false;
-    if (cmd === 1) { } else if (cmd === 2) { isUDP = true; } else { return { hasError: true, message: 'Invalid command' }; }
+    if (cmd === 1) {} else if (cmd === 2) { isUDP = true; } else { return { hasError: true, message: 'Invalid command' }; }
     const portIdx = 19 + optLen;
     const port = new DataView(chunk.slice(portIdx, portIdx + 2)).getUint16(0);
     let addrIdx = portIdx + 2, addrLen = 0, addrValIdx = addrIdx + 1, hostname = '';
@@ -695,7 +755,7 @@ function parseVLsPacketHeader(chunk, token) {
     return { hasError: false, addressType, port, hostname, isUDP, rawIndex: addrValIdx + addrLen, version };
 }
 
-function makeReadableStr(socket, earlyDataHeader) {
+function makeReadableStream(socket, earlyDataHeader) {
     let cancelled = false;
     return new ReadableStream({
         start(controller) {
@@ -737,40 +797,15 @@ async function connectStreams(remoteSocket, webSocket, headerData, retryFunc) {
                     webSocket.send(chunk);
                 }
             },
-            abort() { },
+            abort() {},
         })
     ).catch((err) => {
+        console.error('Stream pipe error:', err);
         closeSocketQuietly(webSocket);
     });
     if (!hasData && retryFunc) {
+        console.log('No data received, retrying...');
         await retryFunc();
-    }
-}
-
-async function forwardataudp(udpChunk, webSocket, respHeader) {
-    try {
-        const tcpSocket = connect({ hostname: '8.8.4.4', port: 53 });
-        let vlessHeader = respHeader;
-        const writer = tcpSocket.writable.getWriter();
-        await writer.write(udpChunk);
-        writer.releaseLock();
-        await tcpSocket.readable.pipeTo(new WritableStream({
-            async write(chunk) {
-                if (webSocket.readyState === WebSocket.OPEN) {
-                    if (vlessHeader) {
-                        const response = new Uint8Array(vlessHeader.length + chunk.byteLength);
-                        response.set(vlessHeader, 0);
-                        response.set(chunk, vlessHeader.length);
-                        webSocket.send(response.buffer);
-                        vlessHeader = null;
-                    } else {
-                        webSocket.send(chunk);
-                    }
-                }
-            },
-        }));
-    } catch (error) {
-        // console.error('UDP forward error:', error);
     }
 }
 
@@ -1373,8 +1408,8 @@ function getMainPageContent(url, baseUrl) {
         
         <div class="button-group">
             <button onclick="copySubscription()" class="btn btn-secondary">复制V2rayN订阅链接</button>
-            <button onclick="copyClashSubscription()" class="btn btn-secondary">复制Clash订阅链接</button>
             <button onclick="copySingboxSubscription()" class="btn btn-secondary">复制singbox订阅链接</button>
+            <button onclick="copyClashSubscription()" class="btn btn-secondary">复制Clash订阅链接</button>
         </div>
         
         <div class="footer">
@@ -1385,13 +1420,13 @@ function getMainPageContent(url, baseUrl) {
                     </svg>
                     <span>GitHub 项目地址</span>
                 </a>
-                <a href="https://t.me/eooceu" target="_blank" class="footer-link">
-                    <span>📱</span>
-                    <span>Telegram 反馈交流群</span>
-                </a>
                 <a href="https://check-proxyip.ssss.nyc.mn/" target="_blank" class="footer-link">
                     <span>✅</span>
                     <span>Proxyip 检测服务</span>
+                </a>
+                <a href="https://t.me/eooceu" target="_blank" class="footer-link">
+                    <span>📱</span>
+                    <span>Telegram 反馈交流群</span>
                 </a>
             </div>
         </div>
