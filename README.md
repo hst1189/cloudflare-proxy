@@ -3,9 +3,24 @@
 
 基于 Cloudflare Workers & Snippets 的高性能 vless + trojan + shadowsocks 代理服务
 
-※Snippetsの場合、需要将env参数注释掉
+> [!IMPORTANT]
+> Snippetsの場合、需要将env参数注释掉
 
-※Cloudflare反代优选IP库 https://github.com/hst1189/IPDB
+
+> [!TIP]
+> Cloudflare反代优选IP库 https://github.com/hst1189/IPDB
+>
+> ProxyIP是否有效，影响能否访问CF网站（CF官网、X推特、ChatGPT等网站）
+> - CF网站IP查询（落地IP为 proxyIP的IP）：https://ip.sb
+> - 非CF网站IP查询（落地IP为 CF的 104.28.xx/2a09.xx）：https://www.whatismyip.com
+
+
+> [!TIP]
+> CF80系端口：`80(推荐)`、`8080`、`8880`、`2052`、`2082`、`2086`、`2095`
+> 
+> CF443系端口：`443(推荐)`、`8443`、`2053`、`2083`、`2087`、`2096`
+
+
 
 
 
@@ -56,8 +71,7 @@
 
 ## 关于cloudns 双向解析
 > [!TIP]
-> cloudns 双向解析域名部署snippets统一使用的域名前缀
-> _acme-challenge
+> cloudns 双向解析域名部署snippets统一使用的域名前缀： `_acme-challenge`
 
 
 
