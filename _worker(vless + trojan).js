@@ -17,7 +17,7 @@ function closeSocketQuietly(socket) {
         if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CLOSING) {
             socket.close();
         }
-    } catch (error) { }
+    } catch (error) {}
 }
 
 function formatIdentifier(arr, offset = 0) {
@@ -40,7 +40,7 @@ function base64ToArray(b64Str) {
 }
 
 function isSpeedTestSite(hostname) {
-    const speedTestDomains = ['speedtest.net', 'fast.com', 'speedtest.cn', 'speed.cloudflare.com', 'ovo.speedtestcustom.com'];
+    const speedTestDomains = ['speedtest.net','fast.com','speedtest.cn','speed.cloudflare.com','ovo.speedtestcustom.com'];
     if (speedTestDomains.includes(hostname)) {
         return true;
     }
@@ -118,7 +118,6 @@ function parseProxyAddress(serverStr) {
 
     return { type: 'direct', host: serverStr, port: 443 };
 }
-
 
 
 async function sha224(text) {

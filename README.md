@@ -1,7 +1,7 @@
 
-# Workers & Snippets deploy VLESS + trojan + shadowsocks
+# Workers & Snippets deploy vless + trojan + shadowsocks
 
-基于 Cloudflare Workers & Snippets 的高性能 VLESS+trojan 代理服务
+基于 Cloudflare Workers & Snippets 的高性能 vless + trojan + shadowsocks 代理服务
 
 ※Snippetsの場合、需要将env参数注释掉
 
