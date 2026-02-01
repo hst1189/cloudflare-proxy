@@ -3,7 +3,10 @@
 
 基于 Cloudflare Workers & Snippets 的高性能 VLESS+trojan 代理服务
 
-【参考】Cloudflare反代优选IP库 https://github.com/hst1189/IPDB
+※Snippetsの場合、需要将env参数注释掉
+
+※Cloudflare反代优选IP库 https://github.com/hst1189/IPDB
+
 
 
 
@@ -19,13 +22,13 @@
 
 ## 环境变量配置
 
-| 变量名 | 描述 | 示例 |
-|--------|------|------|
-| `UUID`或`AUTH`或`uuid` | 用户UUID | `5dc15e15-f285-4a9d-959b-0e4fbdd77b63` |
-| `PASSWORD` | 主页访问密码 | `123456` |
-| `PROXYIP`或`proxyip`或`proxyIP` | 代理服务器IP列表 | `13.230.34.30` |
-| `SUB_PATH`或`subpath` | 订阅路径 | `sub` |
-| `DISABLE_TROJAN`或`CLOSE_TROJAN` | 是否关闭Trojan协议，true关闭，false开启 | `false` 默认开启 |
+| 变量名 | 描述 |
+|--------|------|
+| `UUID` | 用户UUID `5dc15e15-f285-4a9d-959b-0e4fbdd77b63` |
+| `PASSWORD` | 主页密码  `123456` |
+| `PROXYIP` | 代理服务器IP列表  `13.230.34.30` |
+| `SUB_PATH` | 订阅路径  `sub` |
+| `DISABLE_TROJAN` | 是否关闭Trojan协议，true关闭，false开启， `false` 默认开启 |
 
 ## 部署步骤
 
@@ -51,33 +54,31 @@
 5. **访问自定义域名**
    - 输入登录密码进入主页查看相关订阅链接
 
-
+## 关于cloudns 双向解析
 > [!TIP]
 > cloudns 双向解析域名部署snippets统一使用的域名前缀
 > _acme-challenge
 
 
 
-## snippets / workers 路径进阶用法
+## 客户端设置进阶用法
 
 ### 相关路径说明
+| 类型 | 示例 |
+|------|------|
+| **默认路径**（使用服务器设置） | `/?ed=2560` |
+| **带端口的 proxyip** | `/?ed=2560&proxyip=ip:port`  or  `/proxyip=ip:port`|
+| **域名proxyip**| `/?ed=2560&proxyip=proxyip.domain.com`  or  `/proxyip=proxyip.domain.com`|
+| **全局SOCKS5**| `/?ed=2560&proxyip=socks://user:pass@host:port`  or  `/proxyip=socks://user:pass@host:port` |
+| **全局 HTTP/HTTPS**| `/?ed=2560&proxyip=http://user:pass@host:port`  or  `/proxyip=http://user:pass@host:port`|
+
 <img width="700" height="600" alt="image" src="https://github.com/user-attachments/assets/86b3dd1d-bbca-4786-9bb3-430bf6700024" />
 
-| 类型 | 示例 | 说明 |
-|------|------|------|
-| **默认路径** | `/?ed=2560` | 使用代码里设置的默认 `proxyip` |
-| **域名 proxyip** | `/?ed=2560&proxyip=proxyip.domain.com` 或 `proxyip=proxyip.domain.com`  | 使用域名形式的 `proxyip` |
-| **带端口的 proxyip** | `/?ed=2560&proxyip=ip:port` 或 `/proxyip=ip:port` | 使用带端口的 `proxyip` |
-| **SOCKS5** | `/?ed=2560&proxyip=socks://user:pass@host:port` 或 `/proxyip=socks://user:pass@host:port` | 使用全局 SOCKS5 出站 协议头可为socks5 |
-| **HTTP** | `/?ed=2560&proxyip=http://user:pass@host:port` 或 `/proxyip=http://user:pass@host:port` | 使用全局 HTTP/HTTPS 出站 |
 
-
-## shadowsocks 节点参数对照图
-节点path为SSpath变量或uuid开头，示例：`/5dc15e15-f285-4a9d-959b-0e4fbdd77b63/?ed=2560`   带proxyip的示例：`/5dc15e15-f285-4a9d-959b-0e4fbdd77b63/?ed=2560&proxyip=xxxx`  小火箭可去掉`?ed=2560&` 来自定义proxyip或全局出站
+### shadowsocks 节点参数对照图
+- 路径(path): SSpath或uuid开头，示例：`/5dc15e15-f285-4a9d-959b-0e4fbdd77b63/?ed=2560`   
+- 带proxyip：`/5dc15e15-f285-4a9d-959b-0e4fbdd77b63/?ed=2560&proxyip=xxxx`  
+- 小火箭可去掉`?ed=2560&` 来自定义proxyip或全局出站
 <img width="1585" height="1420" alt="PixPin_2025-11-20_21-30-22" src="https://github.com/user-attachments/assets/1ce9060f-9a0d-4093-99e3-4548ee7ac869" />
 
 
-
-## 许可证
-
-GPL 2.0
