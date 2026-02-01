@@ -202,7 +202,7 @@ export default {
      */
     async fetch(request, env, ctx) {
         try {
-			// snippets 没有环境变量，将env注释掉
+			// ************* snippets 没有环境变量，将env注释掉 ************* 
             if (subPath === 'link' || subPath === '') {
                 subPath = yourUUID;
             }
@@ -215,7 +215,7 @@ export default {
             subPath = env.SUB_PATH || env.subpath || subPath;
             yourUUID = env.UUID || env.uuid || yourUUID;
             disabletro = env.DISABLE_TROJAN || env.CLOSE_TROJAN || disabletro;
-            // snippets 没有环境变量，将env注释掉
+            // ************* snippets 没有环境变量，将env注释掉 ************* 
 
             const url = new URL(request.url);
             const pathname = url.pathname;
