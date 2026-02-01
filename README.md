@@ -3,9 +3,7 @@
 
 基于 Cloudflare Workers & Snippets 的高性能 VLESS+trojan 代理服务
 
-Workers & Snippets视频教程：https://youtu.be/GEcKz2NoKlM
-
-Shadowsocks视频教程：https://youtu.be/hUPN_69Atow
+【参考】Cloudflare反代优选IP库 https://github.com/hst1189/IPDB
 
 
 
